@@ -18,12 +18,12 @@ DB_FILE = 'duckdb_exports/default.duckdb'
 def get_github_client(token: str) -> Github:
     return Github(token)
 
-def fetch_repositories(client: Github) -> list[str]:
+def fetch_repositories(client: Github, filter) -> list[str]:
     user = client.get_user()
     return [
         repo.full_name
         for repo in user.get_repos()
-        if 'PUBLICO' in repo.full_name
+        if filter in repo.full_name
     ]
 
 def get_all_commits(repo_name: str, client: Github) -> list[dict]:
@@ -131,7 +131,46 @@ def insert_new_records(conn, df: pd.DataFrame, table: str, key_col: str, repo_na
 def main():
     os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
     client = get_github_client(GITHUB_TOKEN)
-    repos = fetch_repositories(client)
+    repos = fetch_repositories(client, 'INTERNO')
+    print(f"🔍 {len(repos)} repositórios filtrados.")
+
+    conn = duckdb.connect(database=DB_FILE)
+    ensure_tables(conn)
+    insert_new_repositories(conn, repos)
+
+    start = time.time()
+    for repo in repos:
+        print(f"📦 Processando {repo}…")
+
+        # Processa commits
+        try:
+            commits = pd.DataFrame(get_all_commits(repo, client))
+            count_new = insert_new_records(conn, commits, 'commits', 'sha', repo)
+            print(f"    • {count_new} commits novos inseridos.")
+        except GithubException as e:
+            if 'Git Repository is empty' in str(e):
+                print(f"    ⚠️ Repositório vazio, pulando commits.")
+            else:
+                print(f"    ⚠️ Erro ao coletar commits: {e}")
+
+        # Processa pull requests
+        try:
+            prs = pd.DataFrame(get_all_pull_requests(repo, client))
+            count_pr = insert_new_records(conn, prs, 'pull_requests', 'number', repo)
+            print(f"    • {count_pr} pull requests novos inseridos.")
+        except GithubException as e:
+            if 'Git Repository is empty' in str(e):
+                print(f"    ⚠️ Repositório vazio, pulando pull requests.")
+            else:
+                print(f"    ⚠️ Erro ao coletar pull requests: {e}")
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Coleta concluída em {time.time() - start:.2f}s")
+
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    client = get_github_client(GITHUB_TOKEN)
+    repos = fetch_repositories(client, 'PUBLICO')
     print(f"🔍 {len(repos)} repositórios filtrados.")
 
     conn = duckdb.connect(database=DB_FILE)
