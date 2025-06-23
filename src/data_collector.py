@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Callable, Optional
 from datetime import datetime
 
 from .github_client import GitHubClient
@@ -15,7 +15,7 @@ class DataCollector:
         self.github_client = GitHubClient(Config.GITHUB_TOKEN)
         self.datalake = DataLake()
     
-    def collect_all_data(self) -> str:
+    def collect_all_data(self, progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
         logger.info("Starting data collection for all repositories")
         
         repositories = []
@@ -28,8 +28,13 @@ class DataCollector:
             logger.warning("No repositories configured")
             return None
         
-        for repo_name in repo_names:
+        total_repos = len(repo_names)
+        
+        for i, repo_name in enumerate(repo_names, 1):
             try:
+                if progress_callback:
+                    progress_callback(i-1, total_repos, f"Processando: {repo_name}")
+                
                 logger.info(f"Processing repository: {repo_name}")
                 
                 # Create repository record
@@ -49,17 +54,30 @@ class DataCollector:
                 all_pull_requests.extend(pull_requests)
                 logger.info(f"Collected {len(pull_requests)} pull requests from {repo_name}")
                 
+                if progress_callback:
+                    progress_callback(i, total_repos, f"✅ {repo_name} - {len(commits)} commits, {len(pull_requests)} PRs")
+                
             except Exception as e:
                 logger.error(f"Error processing repository {repo_name}: {e}")
+                if progress_callback:
+                    progress_callback(i, total_repos, f"❌ Erro em {repo_name}: {str(e)}")
                 continue
         
         # Create snapshot
+        if progress_callback:
+            progress_callback(total_repos, total_repos, "Criando snapshot no Supabase...")
+            
         snapshot_id = self.datalake.create_snapshot(repositories, all_commits, all_pull_requests)
         
         logger.info(f"Data collection completed. Created snapshot: {snapshot_id}")
         logger.info(f"Total: {len(repositories)} repos, {len(all_commits)} commits, {len(all_pull_requests)} PRs")
         
         return snapshot_id
+    
+    def stop_collection(self):
+        """Para a coleta de dados em andamento"""
+        self.github_client.stop_execution()
+        logger.info("Collection stop requested")
     
     def get_snapshots_summary(self) -> List[dict]:
         return self.datalake.list_snapshots()

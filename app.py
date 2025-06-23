@@ -28,16 +28,36 @@ st.header("⚙️ Controles do Sistema")
 
 # Update button in full width for prominence
 if st.button("🔄 Atualizar Todos os Repositórios (170 repos)", type="primary", use_container_width=True):
-    with st.spinner("Coletando dados de todos os repositórios..."):
-        try:
-            snapshot_id = collector.collect_all_data()
-            if snapshot_id:
-                st.success(f"✅ Dados atualizados! Snapshot: {snapshot_id}")
-                st.rerun()
-            else:
-                st.error("❌ Erro na atualização")
-        except Exception as e:
-            st.error(f"❌ Erro: {str(e)}")
+    try:
+        # Create progress elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        def update_progress(current: int, total: int, message: str):
+            # Update progress bar
+            progress = current / total if total > 0 else 0
+            progress_bar.progress(progress)
+            # Update status text
+            status_text.markdown(f"**📈 {current}/{total}** - {message}")
+            # Force UI update
+            import time
+            time.sleep(0.01)  # Very small delay
+        
+        # Start data collection with progress callback
+        snapshot_id = collector.collect_all_data(progress_callback=update_progress)
+        
+        # Clear progress elements and show final result
+        progress_bar.empty()
+        status_text.empty()
+        
+        if snapshot_id:
+            st.success(f"✅ Dados atualizados! Snapshot: {snapshot_id}")
+            st.rerun()
+        else:
+            st.error("❌ Erro na atualização")
+            
+    except Exception as e:
+        st.error(f"❌ Erro: {str(e)}")
 
 st.divider()
 
@@ -127,9 +147,6 @@ except Exception as e:
     st.error(f"❌ Erro ao carregar snapshot: {str(e)}")
     st.stop()
 
-st.info("As datas estão em GMT, considere sempre colocar 3 horas na frente a data final para São Paulo, Brasil.")
-st.info(f"Analisando commits de {start_datetime} até {end_datetime}")
-st.info(f"📸 Usando snapshot: {snapshot_id}")
 
 # Get commits data
 df_commits = data['commits']
