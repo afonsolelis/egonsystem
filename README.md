@@ -2,9 +2,9 @@
 
 Sistema de análise de commits e pull requests de repositórios GitHub com arquitetura de datalake em nuvem e snapshots históricos.
 
-## O que é o EgonSystem?
+## O que é o FourSystem?
 
-O **EgonSystem** é uma plataforma de monitoramento e análise de repositórios GitHub desenvolvida para acompanhar a atividade de desenvolvimento de múltiplos repositórios simultaneamente. O sistema coleta dados de commits, pull requests e informações dos repositórios, armazenando-os em um datalake em nuvem (Supabase) para análise posterior.
+O **FourSystem** é uma plataforma de monitoramento e análise de repositórios GitHub desenvolvida para acompanhar a atividade de desenvolvimento de múltiplos repositórios simultaneamente. O sistema coleta dados de commits, pull requests e informações dos repositórios, armazenando-os em um datalake em nuvem (Supabase) para análise posterior.
 
 ### Principais características:
 - **Monitoramento de múltiplos repositórios** GitHub em tempo real
@@ -49,7 +49,7 @@ INTERNAL_REPOSITORIES=Inteli-College/2025-1A-T01-G01-INTERNO,Inteli-College/2025
 PUBLIC_REPOSITORIES=Inteli-College/2025-1A-T01-G01-PUBLICO,Inteli-College/2025-1A-T01-G02-PUBLICO
 
 # Application Configuration
-APP_NAME=EgonSystem
+APP_NAME=FourSystem
 LOG_LEVEL=INFO
 
 # Supabase Configuration
