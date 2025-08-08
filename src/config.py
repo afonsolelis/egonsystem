@@ -23,8 +23,14 @@ class Config:
 
     @classmethod
     def validate(cls) -> bool:
-        if not cls.GITHUB_TOKEN:
-            raise ValueError("GITHUB_TOKEN is required")
+        # In deployment environments, GITHUB_TOKEN might not be available
+        # Only validate when actually needed for data collection
         if not cls.SUPABASE_URL or not cls.SUPABASE_ANON_KEY:
             raise ValueError("Supabase configuration (URL and ANON_KEY) is required")
+        return True
+    
+    @classmethod
+    def validate_github_token(cls) -> bool:
+        if not cls.GITHUB_TOKEN:
+            raise ValueError("GITHUB_TOKEN is required for data collection")
         return True

@@ -12,11 +12,18 @@ logger = logging.getLogger(__name__)
 class DataCollector:
     def __init__(self):
         Config.validate()
-        self.github_client = GitHubClient(Config.GITHUB_TOKEN)
+        self.github_client = None
         self.datalake = DataLake()
+        
+    def _ensure_github_client(self):
+        """Initialize GitHub client only when needed"""
+        if self.github_client is None:
+            Config.validate_github_token()
+            self.github_client = GitHubClient(Config.GITHUB_TOKEN)
     
     def collect_all_data(self, progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
         logger.info("Starting data collection for all repositories")
+        self._ensure_github_client()
         
         repositories = []
         all_commits = []
@@ -76,7 +83,8 @@ class DataCollector:
     
     def stop_collection(self):
         """Para a coleta de dados em andamento"""
-        self.github_client.stop_execution()
+        if self.github_client:
+            self.github_client.stop_execution()
         logger.info("Collection stop requested")
     
     def get_snapshots_summary(self) -> List[dict]:
