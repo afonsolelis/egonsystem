@@ -27,7 +27,7 @@ collector = get_data_collector()
 st.header("⚙️ Controles do Sistema")
 
 # Update button in full width for prominence
-if st.button("🔄 Atualizar Todos os Repositórios (170 repos)", type="primary", use_container_width=True):
+if st.button("🔄 Atualizar Todos os Repositórios", type="primary", use_container_width=True):
     try:
         # Create progress elements
         progress_bar = st.progress(0)
