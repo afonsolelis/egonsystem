@@ -36,11 +36,22 @@ class GitHubClient:
         """Obtém informações sobre rate limit"""
         try:
             rate_limit = self.client.get_rate_limit()
+            
+            # PyGithub 2.x mudou a estrutura - core está dentro de resources
+            if hasattr(rate_limit, 'resources') and hasattr(rate_limit.resources, 'core'):
+                core = rate_limit.resources.core
+            elif hasattr(rate_limit, 'core'):
+                # Fallback para versões antigas
+                core = rate_limit.core
+            else:
+                # Se não encontrar core, usar rate diretamente (caso extremo)
+                core = rate_limit.rate if hasattr(rate_limit, 'rate') else rate_limit
+            
             return {
-                'remaining': rate_limit.core.remaining,
-                'limit': rate_limit.core.limit,
-                'reset_time': rate_limit.core.reset,
-                'used': rate_limit.core.limit - rate_limit.core.remaining
+                'remaining': core.remaining,
+                'limit': core.limit,
+                'reset_time': core.reset,
+                'used': core.limit - core.remaining
             }
         except Exception as e:
             logger.warning(f"Could not get rate limit info: {e}")
@@ -87,7 +98,10 @@ class GitHubClient:
                 logger.error(f"Failed to access repository {repo_name} after rate limit wait: {e}")
                 return None
         except GithubException as e:
-            logger.error(f"Error accessing repository {repo_name}: {e}")
+            if e.status == 404:
+                logger.info(f"Repository {repo_name} not found or not accessible (404)")
+            else:
+                logger.error(f"Error accessing repository {repo_name}: {e}")
             return None
     
     def get_commits_from_repo(self, repo_name: str) -> List[Commit]:

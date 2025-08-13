@@ -2,7 +2,7 @@ import os
 from typing import List
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 class Config:
     GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
