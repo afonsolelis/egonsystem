@@ -2,7 +2,7 @@ import logging
 from typing import List, Tuple, Callable, Optional
 from datetime import datetime
 
-from .github_client import GitHubClient
+from .github_client import GitHubClient, CircuitBreakerError
 from .datalake import DataLake
 from .models import Repository, Commit, PullRequest
 from .config import Config
@@ -56,14 +56,21 @@ class DataCollector:
                 all_commits.extend(commits)
                 logger.info(f"Collected {len(commits)} commits from {repo_name}")
                 
-                # Collect pull requests
-                pull_requests = self.github_client.get_pull_requests_from_repo(repo_name)
+                # Collect pull requests (passando commits coletados para otimizar)
+                pull_requests = self.github_client.get_pull_requests_from_repo(repo_name, commits)
                 all_pull_requests.extend(pull_requests)
                 logger.info(f"Collected {len(pull_requests)} pull requests from {repo_name}")
                 
                 if progress_callback:
                     progress_callback(i, total_repos, f"✅ {repo_name} - {len(commits)} commits, {len(pull_requests)} PRs")
                 
+            except CircuitBreakerError as e:
+                # Parar completamente a coleta - não salvar dados parciais
+                error_msg = f"🔴 Coleta interrompida: {str(e)}"
+                logger.error(error_msg)
+                if progress_callback:
+                    progress_callback(i, total_repos, error_msg)
+                raise e  # Propagar o erro para o front
             except Exception as e:
                 logger.error(f"Error processing repository {repo_name}: {e}")
                 if progress_callback:
@@ -99,3 +106,4 @@ class DataCollector:
             return None
         
         return self.datalake.load_snapshot_data(snapshot_id)
+    

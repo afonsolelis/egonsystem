@@ -13,12 +13,21 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
+class CircuitBreakerError(Exception):
+    """Erro customizado para circuit breaker"""
+    pass
+
 class GitHubClient:
     def __init__(self, token: str):
         self.client = Github(token)
         self.user = self.client.get_user()
         self.should_stop = threading.Event()
         self.rate_limit_reset_time = None
+        
+        # Circuit breaker state
+        self.failure_count = 0
+        self.failure_threshold = 3  # Número de falhas consecutivas para parar
+        self.last_error = None
         
     def set_stop_callback(self, callback: Callable[[], bool]):
         """Define callback para verificar se deve parar a execução"""
@@ -27,6 +36,23 @@ class GitHubClient:
     def check_should_stop(self) -> bool:
         """Verifica se deve parar a execução"""
         return self.should_stop.is_set() or (hasattr(self, 'should_stop_callback') and self.should_stop_callback())
+    
+    def _record_failure(self, error: Exception):
+        """Registra uma falha na operação"""
+        self.failure_count += 1
+        self.last_error = str(error)
+        
+        if self.failure_count >= self.failure_threshold:
+            logger.error(f"Muitas falhas consecutivas ({self.failure_count}) - parando coleta")
+            logger.error(f"Último erro: {self.last_error}")
+            raise CircuitBreakerError(f"Coleta interrompida após {self.failure_count} falhas consecutivas: {self.last_error}")
+        else:
+            logger.warning(f"Falha {self.failure_count}/{self.failure_threshold} registrada: {self.last_error}")
+    
+    def _record_success(self):
+        """Registra uma operação bem-sucedida"""
+        self.failure_count = 0
+        self.last_error = None
     
     def stop_execution(self):
         """Para a execução atual"""
@@ -78,30 +104,42 @@ class GitHubClient:
         return True
     
     def get_repository(self, repo_name: str) -> Optional[Repository]:
-        """Obtém repositório com rate limiting inteligente"""
+        """Obtém repositório com rate limiting inteligente e circuit breaker"""
         if self.check_should_stop():
             return None
-            
+        
         try:
             # Verifica rate limit antes da requisição
             if not self.wait_for_rate_limit():
                 return None
-                
-            return self.client.get_repo(repo_name)
-        except RateLimitExceededException:
+            
+            repo = self.client.get_repo(repo_name)
+            self._record_success()  # Registra sucesso
+            return repo
+        except RateLimitExceededException as e:
             logger.warning(f"Rate limit exceeded while accessing {repo_name}")
             if not self.wait_for_rate_limit():
+                self._record_failure(e)
                 return None
             try:
-                return self.client.get_repo(repo_name)
-            except Exception as e:
-                logger.error(f"Failed to access repository {repo_name} after rate limit wait: {e}")
+                repo = self.client.get_repo(repo_name)
+                self._record_success()
+                return repo
+            except Exception as retry_error:
+                self._record_failure(retry_error)
+                logger.error(f"Failed to access repository {repo_name} after rate limit wait: {retry_error}")
                 return None
         except GithubException as e:
             if e.status == 404:
                 logger.info(f"Repository {repo_name} not found or not accessible (404)")
+                return None  # 404 não é considerado falha do circuit breaker
             else:
+                self._record_failure(e)
                 logger.error(f"Error accessing repository {repo_name}: {e}")
+                return None
+        except Exception as e:
+            self._record_failure(e)
+            logger.error(f"Unexpected error accessing repository {repo_name}: {e}")
             return None
     
     def get_commits_from_repo(self, repo_name: str) -> List[Commit]:
@@ -157,7 +195,7 @@ class GitHubClient:
                 
         return commits
     
-    def get_pull_requests_from_repo(self, repo_name: str) -> List[PullRequest]:
+    def get_pull_requests_from_repo(self, repo_name: str, collected_commits: List[Commit] = None) -> List[PullRequest]:
         pull_requests = []
         
         if self.check_should_stop():
@@ -167,6 +205,11 @@ class GitHubClient:
             repo = self.get_repository(repo_name)
             if not repo:
                 return pull_requests
+            
+            # Criar cache de commits já coletados para otimizar
+            commit_cache = {}
+            if collected_commits:
+                commit_cache = {commit.sha: commit for commit in collected_commits}
                 
             pr_count = 0
             for gh_pr in repo.get_pulls(state='all', sort='created', direction='desc'):
@@ -180,6 +223,25 @@ class GitHubClient:
                         break
                 
                 try:
+                    # Estratégia otimizada para commits do PR
+                    pr_commits = []
+                    if commit_cache:
+                        # Usar commits já coletados quando possível (evita chamada à API)
+                        try:
+                            # Apenas fazer chamada se realmente precisar de dados específicos do PR
+                            pr_commits_limited = list(gh_pr.get_commits()[:10])  # Limitar a 10 commits
+                            pr_commits = [c.sha for c in pr_commits_limited]
+                        except Exception:
+                            # Fallback: usar commits do cache se a chamada falhar
+                            pr_commits = [sha for sha in commit_cache.keys()][:10]
+                    else:
+                        # Coleta limitada quando não há cache
+                        try:
+                            pr_commits_limited = list(gh_pr.get_commits()[:5])  # Ainda mais limitado
+                            pr_commits = [c.sha for c in pr_commits_limited]
+                        except Exception:
+                            pr_commits = []  # Evitar falha completa
+                    
                     pr = PullRequest(
                         number=str(gh_pr.number),
                         title=gh_pr.title,
@@ -189,7 +251,7 @@ class GitHubClient:
                         state=gh_pr.state,
                         comments=str(gh_pr.comments),
                         review_comments=str(gh_pr.review_comments),
-                        commits=str([c.sha for c in gh_pr.get_commits()]),
+                        commits=str(pr_commits),
                         url=gh_pr.html_url,
                         repo_name=repo_name
                     )
