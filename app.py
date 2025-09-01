@@ -57,7 +57,14 @@ if st.button("🔄 Atualizar Todos os Repositórios", type="primary", use_contai
             st.error("❌ Erro na atualização")
             
     except Exception as e:
-        st.error(f"❌ Erro: {str(e)}")
+        # Verificar se é erro de falhas consecutivas
+        if "Coleta interrompida após" in str(e):
+            st.error(f"🔴 **Coleta Interrompida por Falhas Consecutivas**")
+            st.error(f"**Erro:** {str(e)}")
+            st.warning("⚠️ **O sistema detectou múltiplos erros e parou a coleta para proteger a API do GitHub.**")
+            st.info("💡 **Verifique sua conexão, tokens do GitHub e tente novamente manualmente.**")
+        else:
+            st.error(f"❌ Erro na coleta: {str(e)}")
 
 st.divider()
 
