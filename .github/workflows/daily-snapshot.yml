@@ -1,0 +1,40 @@
+name: Daily Snapshot
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Todos os dias às 03:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run snapshot generation
+        env:
+          # GitHub Token (recomenda-se um PAT com escopos necessários)
+          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB }}
+          # Supabase
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+          # Repositórios (listas separadas por vírgula)
+          INTERNAL_REPOSITORIES: ${{ secrets.INTERNAL_REPOSITORIES }}
+          PUBLIC_REPOSITORIES: ${{ secrets.PUBLIC_REPOSITORIES }}
+          # Configuração opcional
+          APP_NAME: ${{ vars.APP_NAME }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+        run: |
+          python scripts/update_snapshot.py

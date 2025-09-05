@@ -23,48 +23,7 @@ def get_data_collector():
 
 collector = get_data_collector()
 
-# Main controls in organized sections
-st.header("⚙️ Controles do Sistema")
-
-# Update button in full width for prominence
-if st.button("🔄 Atualizar Todos os Repositórios", type="primary", use_container_width=True):
-    try:
-        # Create progress elements
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        def update_progress(current: int, total: int, message: str):
-            # Update progress bar
-            progress = current / total if total > 0 else 0
-            progress_bar.progress(progress)
-            # Update status text
-            status_text.markdown(f"**📈 {current}/{total}** - {message}")
-            # Force UI update
-            import time
-            time.sleep(0.01)  # Very small delay
-        
-        # Start data collection with progress callback
-        snapshot_id = collector.collect_all_data(progress_callback=update_progress)
-        
-        # Clear progress elements and show final result
-        progress_bar.empty()
-        status_text.empty()
-        
-        if snapshot_id:
-            st.success(f"✅ Dados atualizados! Snapshot: {snapshot_id}")
-            st.rerun()
-        else:
-            st.error("❌ Erro na atualização")
-            
-    except Exception as e:
-        # Verificar se é erro de falhas consecutivas
-        if "Coleta interrompida após" in str(e):
-            st.error(f"🔴 **Coleta Interrompida por Falhas Consecutivas**")
-            st.error(f"**Erro:** {str(e)}")
-            st.warning("⚠️ **O sistema detectou múltiplos erros e parou a coleta para proteger a API do GitHub.**")
-            st.info("💡 **Verifique sua conexão, tokens do GitHub e tente novamente manualmente.**")
-        else:
-            st.error(f"❌ Erro na coleta: {str(e)}")
+st.info("📸 Os snapshots são gerados automaticamente todos os dias às 03:00 via GitHub Actions.")
 
 st.divider()
 
@@ -102,7 +61,7 @@ with col1:
         st.info(f"📊 {current_snapshot['repositories_count']} repos, {current_snapshot['commits_count']} commits, {current_snapshot['pull_requests_count']} PRs")
         
     else:
-        st.warning("⚠️ Nenhum snapshot disponível. Clique em 'Atualizar' acima para criar o primeiro.")
+        st.warning("⚠️ Nenhum snapshot disponível. Aguarde a execução agendada diária (03:00) para criação do primeiro snapshot.")
         snapshot_id = None
 
 with col2:
@@ -141,7 +100,7 @@ with st.expander("ℹ️ Configuração do Sistema"):
         st.metric("Repositórios Públicos", len(Config.PUBLIC_REPOSITORIES))
 
 if not snapshot_id:
-    st.warning("⚠️ Nenhum snapshot selecionado. Use o botão 'Atualizar' acima para coletar dados.")
+    st.warning("⚠️ Nenhum snapshot selecionado. Aguarde a geração automática diária (03:00).")
     st.stop()
 
 # Load data from selected snapshot
