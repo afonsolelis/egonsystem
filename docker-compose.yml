@@ -7,8 +7,11 @@ services:
     ports:
       - "9990:8501"
     volumes:
-      - ./datalake:/app/datalake
+      - ./data:/app/data
     environment:
       - PYTHONPATH=/app
+      - STORAGE_BACKEND=local
+      - DATALAKE_PATH=/app/data
+      - SNAPSHOTS_PATH=/app/data/snapshots
     env_file:
       - .env

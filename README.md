@@ -4,11 +4,11 @@ Sistema de análise de commits e pull requests de repositórios GitHub com arqui
 
 ## O que é o FourSystem?
 
-O **FourSystem** é uma plataforma de monitoramento e análise de repositórios GitHub desenvolvida para acompanhar a atividade de desenvolvimento de múltiplos repositórios simultaneamente. O sistema coleta dados de commits, pull requests e informações dos repositórios, armazenando-os em um datalake em nuvem (Supabase) para análise posterior.
+O **FourSystem** é uma plataforma de monitoramento e análise de repositórios GitHub desenvolvida para acompanhar a atividade de desenvolvimento de múltiplos repositórios simultaneamente. O sistema coleta dados de commits, pull requests e informações dos repositórios, armazenando-os em um datalake que pode ser em nuvem (Supabase) ou local (filesystem) para análise posterior.
 
 ### Principais características:
 - **Monitoramento de múltiplos repositórios** GitHub em tempo real
-- **Datalake em nuvem** com Supabase Storage para armazenamento escalável
+- **Datalake configurável**: Supabase Storage (nuvem) ou filesystem local
 - **Snapshots históricos** para análise temporal dos dados
 - **Dashboard interativo** com métricas e visualizações
 - **Coleta automatizada** de dados via API do GitHub
@@ -22,7 +22,15 @@ O **FourSystem** é uma plataforma de monitoramento e análise de repositórios 
 - Conta no Supabase (gratuita)
 - Docker (opcional, para execução containerizada)
 
-### 1. Configurar Supabase
+### 1. Escolher Backend de Armazenamento
+
+Por padrão o sistema usa armazenamento local no diretório `data/snapshots/`. Para usar Supabase, configure as variáveis abaixo.
+
+#### Opção A: Local (padrão)
+- Defina `STORAGE_BACKEND=local` no `.env` (ou omita, pois já é o default)
+- Snapshots serão salvos em `data/snapshots/` (já ignorado no `.gitignore`)
+
+#### Opção B: Supabase
 
 1. Acesse [supabase.com](https://supabase.com) e crie uma conta
 2. Crie um novo projeto
@@ -51,6 +59,10 @@ PUBLIC_REPOSITORIES=Inteli-College/2025-1A-T01-G01-PUBLICO,Inteli-College/2025-1
 # Application Configuration
 APP_NAME=FourSystem
 LOG_LEVEL=INFO
+
+# Storage Backend
+# local (default) ou supabase
+STORAGE_BACKEND=local
 
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
@@ -95,7 +107,25 @@ docker-compose up --build
 
 ## 🏗️ Arquitetura do Sistema
 
-### Estrutura do Datalake (Supabase Storage)
+### Estrutura do Datalake
+#### Local (filesystem)
+```
+data/
+└── snapshots/
+    ├── snapshot_2025-06-23_14-30-00/
+    │   ├── repositories.parquet
+    │   ├── commits.parquet
+    │   ├── pull_requests.parquet
+    │   └── metadata.json
+    ├── snapshot_2025-06-23_15-45-00/
+    │   ├── repositories.parquet
+    │   ├── commits.parquet
+    │   ├── pull_requests.parquet
+    │   └── metadata.json
+    └── ...
+```
+
+#### Supabase (Storage Bucket)
 ```
 /snapshots/ (bucket)
 ├── snapshot_2025-06-23_14-30-00/
@@ -147,9 +177,9 @@ docker-compose up --build
 - **📋 Listas detalhadas** de commits e PRs
 - **🔄 Botão de atualização** em tempo real
 
-### ✅ Datalake em Nuvem
+### ✅ Datalake
 - **📸 Snapshots versionados** com timestamp
-- **☁️ Armazenamento em Supabase** Storage
+- **☁️ Supabase Storage** ou **💾 filesystem local**
 - **🗂️ Formato Parquet** para alta performance
 - **📊 Histórico completo** de todas as coletas
 - **🔄 Recuperação de snapshots** antigos
@@ -262,7 +292,7 @@ Solução: Verificar se o GITHUB_TOKEN está correto e ativo
 #### Erro de Conexão Supabase
 ```
 Erro: Bucket not found
-Solução: Criar bucket 'snapshots' no painel do Supabase
+Solução: Criar bucket 'snapshots' no painel do Supabase ou altere `STORAGE_BACKEND=local`
 ```
 
 #### Erro de Permissão Supabase Storage
@@ -279,6 +309,19 @@ Solução: Aguardar reset ou usar token com quota maior
 
 ### Logs de Debug
 Para debug detalhado, configure `LOG_LEVEL=DEBUG` no arquivo `.env`.
+
+## 🔁 Migração de Snapshots do Supabase para Local
+
+Se você já tem snapshots no Supabase e quer migrar para o filesystem local:
+
+1. Garanta que suas credenciais Supabase estejam configuradas no `.env`
+2. Execute o script de migração:
+
+```bash
+python scripts/migrate_supabase_to_local.py
+```
+
+Os arquivos serão baixados para `data/snapshots/` mantendo a mesma estrutura.
 
 ## 🔮 Próximos Passos
 
