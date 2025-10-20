@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   egonsystem:
     build: .
@@ -8,6 +6,22 @@ services:
       - "9990:8501"
     volumes:
       - ./data:/app/data
+      - ./cron:/app/cron:ro
+    environment:
+      - PYTHONPATH=/app
+      - STORAGE_BACKEND=local
+      - DATALAKE_PATH=/app/data
+      - SNAPSHOTS_PATH=/app/data/snapshots
+    env_file:
+      - .env
+
+  scheduler:
+    build: .
+    container_name: egonsystem-scheduler
+    command: ["/usr/local/bin/supercronic", "/app/cron/egonsystem.cron"]
+    volumes:
+      - ./data:/app/data
+      - ./cron:/app/cron:ro
     environment:
       - PYTHONPATH=/app
       - STORAGE_BACKEND=local
